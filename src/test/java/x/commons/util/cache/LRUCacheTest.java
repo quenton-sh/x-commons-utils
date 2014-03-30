@@ -1,6 +1,9 @@
 package x.commons.util.cache;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.util.Set;
 
 import org.junit.Test;
 
@@ -21,6 +24,19 @@ public class LRUCacheTest {
 		
 		removed = sug.remove("anotherKey");
 		assertTrue(removed == null);
+	}
+	
+	@Test
+	public void testKeySet() throws InterruptedException {
+		LRUCache<String> sug = new LRUCache<String>(10);
+		sug.set("key1", 1, "value1");
+		sug.set("key2", 10, "value2");
+		sug.set("key3", 10, "value3");
+		Thread.sleep(1000);
+		Set<String> keySet = sug.keySet();
+		assertTrue(keySet.size() == 2);
+		assertTrue(keySet.contains("key2"));
+		assertTrue(keySet.contains("key3"));
 	}
 	
 	@Test
