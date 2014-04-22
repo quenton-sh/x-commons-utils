@@ -16,35 +16,76 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.conn.ClientConnectionManager;
+import org.apache.http.conn.scheme.PlainSocketFactory;
+import org.apache.http.conn.scheme.Scheme;
+import org.apache.http.conn.scheme.SchemeRegistry;
+import org.apache.http.conn.ssl.SSLSocketFactory;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.conn.PoolingClientConnectionManager;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.params.CoreConnectionPNames;
+import org.apache.http.util.EntityUtils;
 
 public class HttpUtils {
 	
+	private volatile static ClientConnectionManager connectionManager;
+	
+	static {
+		initConnectionPool(new HttpConnectionPoolConfig());
+	}
+	
+	public synchronized static void initConnectionPool(HttpConnectionPoolConfig poolConfig) {
+		SchemeRegistry schemeRegistry = new SchemeRegistry();
+		schemeRegistry.register(
+		         new Scheme("http", 80, PlainSocketFactory.getSocketFactory()));
+		schemeRegistry.register(
+		         new Scheme("https", 443, SSLSocketFactory.getSocketFactory()));
+
+		PoolingClientConnectionManager cm = new PoolingClientConnectionManager(schemeRegistry);
+		cm.setMaxTotal(poolConfig.getMaxTotal());
+		cm.setDefaultMaxPerRoute(poolConfig.getDefaultMaxPerRoute());
+		
+		ClientConnectionManager oldConnectionManager = HttpUtils.connectionManager;
+		HttpUtils.connectionManager = cm;
+		
+		if (oldConnectionManager != null) {
+			oldConnectionManager.shutdown();
+		}
+	}
+	
+	private static HttpClient buildHttpClient(HttpConfig config) {
+		HttpClient client = new DefaultHttpClient(connectionManager);
+		client.getParams().setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, config.getConnectionTimeout());
+		client.getParams().setIntParameter(CoreConnectionPNames.SO_TIMEOUT, config.getSocketTimeout());
+		return client;
+	}
+	
 	private static interface ResponseBuilder {
-		Object buildResponse(HttpClient client, int statusCode, String reason, 
+		Object buildResponse(HttpRequestBase requestBase, int statusCode, String reason, 
 				Map<String, String> resHeaders, HttpEntity entity) throws Exception;
 	}
 	
-	private static class StreamResponseBuilderImpl implements ResponseBuilder {
+	private static class StreamResponseBuilder implements ResponseBuilder {
 		@Override
-		public Object buildResponse(HttpClient client, int statusCode, String reason,
+		public Object buildResponse(HttpRequestBase httpRequestBase, int statusCode, String reason,
 				Map<String, String> resHeaders, HttpEntity entity)
 				throws Exception {
 			InputStream in = null;
 			if (entity != null) {
 				in = entity.getContent();
 			}
-			StreamResponse res = new StreamResponse(statusCode, reason, resHeaders, in, client.getConnectionManager());
+			StreamResponse res = new StreamResponse(statusCode, reason, resHeaders, in, httpRequestBase);
 			return res;
 		}
 	}
 	
-	private static class DataResponseBuilderImpl implements ResponseBuilder {
+	private static class DataResponseBuilder implements ResponseBuilder {
 		@Override
-		public Object buildResponse(HttpClient client, int statusCode,
+		public Object buildResponse(HttpRequestBase httpRequestBase, int statusCode,
 				String reason, Map<String, String> resHeaders, HttpEntity entity)
 				throws Exception {
 			byte[] bodyData = null;
@@ -52,16 +93,17 @@ public class HttpUtils {
 				InputStream in = entity.getContent();
 				bodyData = IOUtils.toByteArray(in);
 			}
-			DataResponse res = new DataResponse(statusCode, reason, resHeaders,
-					bodyData);
+			
+			EntityUtils.consumeQuietly(entity);
+			httpRequestBase.releaseConnection();
+			
+			DataResponse res = new DataResponse(statusCode, reason, resHeaders, bodyData);
 			return res;
 		}
 	}
 	
-	private static Object doPost(HttpClient client, String url, 
-			Map<String, String> headers, Map<String, String> formData, String encoding, 
-			byte[] bodyData, InputStream streamedData, ResponseBuilder resBuilder) throws Exception {
-		HttpPost post = new HttpPost(url);
+	private static Object doPost(HttpPost post, Map<String, String> headers, Map<String, String> formData, String encoding, 
+			byte[] bodyData, InputStream streamedData, HttpConfig config, ResponseBuilder resBuilder) throws Exception {
 		if (headers != null) {
 			for (Entry<String, String> entry : headers.entrySet()) {
 				post.addHeader(entry.getKey(), entry.getValue());
@@ -78,9 +120,10 @@ public class HttpUtils {
 		} else if (streamedData != null) {
 			post.setEntity(new InputStreamEntity(streamedData, -1));
 		}
-
+		HttpClient httpClient = buildHttpClient(config);
+		HttpResponse response = httpClient.execute(post);
+		
 		// status code line:
-		HttpResponse response = client.execute(post);
 		int statusCode = response.getStatusLine().getStatusCode();
 		String reason = response.getStatusLine().getReasonPhrase();
 
@@ -93,20 +136,20 @@ public class HttpUtils {
 
 		// response content:
 		HttpEntity entity = response.getEntity();
-		return resBuilder.buildResponse(client, statusCode, reason, map, entity);
+		return resBuilder.buildResponse(post, statusCode, reason, map, entity);
 	}
 	
-	private static Object doGet(HttpClient client, String url, 
-			Map<String, String> headers, ResponseBuilder resBuilder) throws Exception {
-		HttpGet get = new HttpGet(url);
+	private static Object doGet(HttpGet get, Map<String, String> headers, 
+			HttpConfig config, ResponseBuilder resBuilder) throws Exception {
 		if (headers != null) {
 			for (Entry<String, String> entry : headers.entrySet()) {
 				get.addHeader(entry.getKey(), entry.getValue());
 			}
 		}
+		HttpClient httpClient = buildHttpClient(config);
+		HttpResponse response = httpClient.execute(get);
 
 		// status code line:
-		HttpResponse response = client.execute(get);
 		int statusCode = response.getStatusLine().getStatusCode();
 		String reason = response.getStatusLine().getReasonPhrase();
 
@@ -116,130 +159,187 @@ public class HttpUtils {
 		for (Header header : resHeaders) {
 			map.put(header.getName(), header.getValue());
 		}
-		
+
 		// response content:
 		HttpEntity entity = response.getEntity();
-		return resBuilder.buildResponse(client, statusCode, reason, map, entity);
+		return resBuilder.buildResponse(get, statusCode, reason, map, entity);
 	}
 	
-	
+	///////////////////////
 
 	public static DataResponse getAndClose(String url,
 			Map<String, String> headers) throws Exception {
-		HttpClient client = null;
+		return getAndClose(url, headers, new HttpConfig());
+	}
+	
+	public static DataResponse getAndClose(String url,
+			Map<String, String> headers, HttpConfig config) throws Exception {
+		HttpGet httpGet = null;
 		try {
-			client = new DefaultHttpClient();
-			return (DataResponse) doGet(client, url, headers, 
-					new DataResponseBuilderImpl());
-		} finally {
-			if (client != null) {
-				client.getConnectionManager().shutdown();
+			httpGet = new HttpGet(url);
+			return (DataResponse) doGet(httpGet, headers, config, 
+					new DataResponseBuilder());
+		} catch (Exception e) {
+			if (httpGet != null) {
+				httpGet.releaseConnection();
 			}
+			throw e;
 		}
 	}
 	
+	///////////////////////
+	
 	public static StreamResponse get(String url, Map<String, String> headers) throws Exception {
-		HttpClient client = null;
+		return get(url, headers, new HttpConfig());
+	}
+	
+	public static StreamResponse get(String url, Map<String, String> headers, HttpConfig config) throws Exception {
+		HttpGet httpGet = null;
 		try {
-			client = new DefaultHttpClient();
-			return (StreamResponse) doGet(client, url, headers, 
-					new StreamResponseBuilderImpl());
+			httpGet = new HttpGet(url);
+			return (StreamResponse) doGet(httpGet, headers, config, 
+					new StreamResponseBuilder());
 		} catch (Exception e) {
-			if (client != null) {
-				client.getConnectionManager().shutdown();
+			if (httpGet != null) {
+				httpGet.releaseConnection();
 			}
 			throw e;
 		}
 	}
 
+	///////////////////////
+	
 	public static DataResponse postAndClose(String url, Map<String, String> headers, byte[] body)
 			throws Exception {
-		HttpClient client = null;
+		return postAndClose(url, headers, body, new HttpConfig());
+	}
+	
+	public static DataResponse postAndClose(String url, Map<String, String> headers, byte[] body, HttpConfig config)
+			throws Exception {
+		HttpPost httpPost = null;
 		try {
-			client = new DefaultHttpClient();
-			return (DataResponse) doPost(client, url, headers, null, null, 
-					body, null, new DataResponseBuilderImpl());
-		} finally {
-			if (client != null) {
-				client.getConnectionManager().shutdown();
+			httpPost = new HttpPost(url);
+			return (DataResponse) doPost(httpPost, headers, null, null, body, null, config, 
+					new DataResponseBuilder());
+		} catch (Exception e) {
+			if (httpPost != null) {
+				httpPost.releaseConnection();
 			}
+			throw e;
 		}
 	}
+	
+	///////////////////////
 	
 	public static DataResponse postAndClose(String url, Map<String, String> headers, Map<String, String> formData, String encoding)
 			throws Exception {
-		HttpClient client = null;
+		return postAndClose(url, headers, formData, encoding, new HttpConfig());
+	}
+	
+	public static DataResponse postAndClose(String url, Map<String, String> headers, Map<String, String> formData, String encoding, HttpConfig config)
+			throws Exception {
 		if (encoding == null) {
 			encoding = "UTF-8";
 		}
+		HttpPost httpPost = null;
 		try {
-			client = new DefaultHttpClient();
-			return (DataResponse) doPost(client, url, headers, formData, encoding, 
-					null, null, new DataResponseBuilderImpl());
-		} finally {
-			if (client != null) {
-				client.getConnectionManager().shutdown();
+			httpPost = new HttpPost(url);
+			return (DataResponse) doPost(httpPost, headers, formData, encoding, null, null, config, 
+					new DataResponseBuilder());
+		} catch (Exception e) {
+			if (httpPost != null) {
+				httpPost.releaseConnection();
 			}
+			throw e;
 		}
 	}
+	
+	///////////////////////
 	
 	public static DataResponse postAndClose(String url, Map<String, String> headers, InputStream streamedData)
 			throws Exception {
-		HttpClient client = null;
+		return postAndClose(url, headers, streamedData, new HttpConfig());
+	}
+	
+	public static DataResponse postAndClose(String url, Map<String, String> headers, InputStream streamedData, HttpConfig config)
+			throws Exception {
+		HttpPost httpPost = null;
 		try {
-			client = new DefaultHttpClient();
-			return (DataResponse) doPost(client, url, headers, null, null, 
-					null, streamedData, new DataResponseBuilderImpl());
-		} finally {
-			if (client != null) {
-				client.getConnectionManager().shutdown();
+			httpPost = new HttpPost(url);
+			return (DataResponse) doPost(httpPost, headers, null, null, null, streamedData, config, 
+					new DataResponseBuilder());
+		} catch (Exception e) {
+			if (httpPost != null) {
+				httpPost.releaseConnection();
 			}
+			throw e;
 		}
 	}
+	
+	///////////////////////
 	
 	public static StreamResponse post(String url, Map<String, String> headers, byte[] body)
 			throws Exception {
-		HttpClient client = null;
+		return post(url, headers, body, new HttpConfig());
+	}
+	
+	public static StreamResponse post(String url, Map<String, String> headers, byte[] body, HttpConfig config)
+			throws Exception {
+		HttpPost httpPost = null;
 		try {
-			client = new DefaultHttpClient();
-			return (StreamResponse) doPost(client, url, headers, null, null, 
-					body, null, new StreamResponseBuilderImpl());
+			httpPost = new HttpPost(url);
+			return (StreamResponse) doPost(httpPost, headers, null, null, body, null, config, 
+					new StreamResponseBuilder());
 		} catch (Exception e) {
-			if (client != null) {
-				client.getConnectionManager().shutdown();
+			if (httpPost != null) {
+				httpPost.releaseConnection();
 			}
 			throw e;
 		}
 	}
+	
+	///////////////////////
 	
 	public static StreamResponse post(String url, Map<String, String> headers, Map<String, String> formData, String encoding)
 			throws Exception {
-		HttpClient client = null;
+		return post(url, headers, formData, encoding, new HttpConfig());
+	}
+	
+	public static StreamResponse post(String url, Map<String, String> headers, Map<String, String> formData, String encoding, HttpConfig config)
+			throws Exception {
 		if (encoding == null) {
 			encoding = "UTF-8";
 		}
+		HttpPost httpPost = null;
 		try {
-			client = new DefaultHttpClient();
-			return (StreamResponse) doPost(client, url, headers, formData, encoding, 
-					null, null, new StreamResponseBuilderImpl());
+			httpPost = new HttpPost(url);
+			return (StreamResponse) doPost(httpPost, headers, formData, encoding, null, null, config, 
+					new StreamResponseBuilder());
 		} catch (Exception e) {
-			if (client != null) {
-				client.getConnectionManager().shutdown();
+			if (httpPost != null) {
+				httpPost.releaseConnection();
 			}
 			throw e;
 		}
 	}
 	
+	///////////////////////
+	
 	public static StreamResponse post(String url, Map<String, String> headers, InputStream streamedData)
 			throws Exception {
-		HttpClient client = null;
+		return post(url, headers, streamedData, new HttpConfig());
+	}
+	
+	public static StreamResponse post(String url, Map<String, String> headers, InputStream streamedData, HttpConfig config)
+			throws Exception {
+		HttpPost httpPost = null;
 		try {
-			client = new DefaultHttpClient();
-			return (StreamResponse) doPost(client, url, headers, null, null, 
-					null, streamedData, new StreamResponseBuilderImpl());
+			httpPost = new HttpPost(url);
+			return (StreamResponse) doPost(httpPost, headers, null, null, null, streamedData, config, 
+					new StreamResponseBuilder());
 		} catch (Exception e) {
-			if (client != null) {
-				client.getConnectionManager().shutdown();
+			if (httpPost != null) {
+				httpPost.releaseConnection();
 			}
 			throw e;
 		}

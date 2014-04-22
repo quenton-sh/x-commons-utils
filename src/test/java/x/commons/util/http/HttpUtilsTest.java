@@ -32,6 +32,7 @@ public class HttpUtilsTest {
 	public void getAndClose() throws Exception {
 		Map<String, String> headers = new HashMap<String, String>();
 		headers.put("Content-Type", "text/html;charset=UTF-8");
+		headers.put("User-Agent", "test");
 		
 		DataResponse res = HttpUtils.getAndClose("http://iframe.ip138.com/ic.asp", headers);
 		assertEquals(200, res.getStatus());
