@@ -9,10 +9,6 @@ import java.util.Map;
 import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 
-import x.commons.util.http.DataResponse;
-import x.commons.util.http.HttpUtils;
-import x.commons.util.http.StreamResponse;
-
 public class HttpUtilsTest {
 
 	@Test
