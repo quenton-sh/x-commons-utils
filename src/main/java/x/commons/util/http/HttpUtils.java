@@ -28,6 +28,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.mime.MultipartEntity;
 import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.InputStreamBody;
 import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.impl.conn.PoolingClientConnectionManager;
@@ -107,34 +108,48 @@ public class HttpUtils {
 		}
 	}
 	
-	private static Object doPost(HttpPost post, Map<String, String> headers,
-			Map<String, String> formData, String encoding, Map<String, File> files,
-			byte[] bodyData, 
-			InputStream streamedData,
+	private static Object doPost(HttpPost post, Map<String, String> headers, 
+			Map<String, Object> formData, String encoding, boolean multipart, // form data
+			byte[] bodyData,												  // binary data
+			InputStream streamedData,										  // streamed data
 			HttpConfig config, ResponseBuilder resBuilder) throws Exception {
 		if (headers != null) {
 			for (Entry<String, String> entry : headers.entrySet()) {
 				post.addHeader(entry.getKey(), entry.getValue());
 			}
 		}
-		if (files != null) {
-			MultipartEntity entity = new MultipartEntity();
-			for (Entry<String, File> fileEntry : files.entrySet()) {
-				entity.addPart(fileEntry.getKey(), new FileBody(fileEntry.getValue()));
-			}
-			if (formData != null && encoding != null) {
-				Charset charset = Charset.forName(encoding);
-				for (Entry<String, String> formItemEntry : formData.entrySet()) {
-					entity.addPart(formItemEntry.getKey(), new StringBody(formItemEntry.getValue(), charset));
+		if (formData != null && encoding != null) {
+			Charset charset = Charset.forName(encoding);
+			if (multipart) {
+				MultipartEntity entity = new MultipartEntity();
+				for (Entry<String, Object> entry : formData.entrySet()) {
+					Object value = entry.getValue();
+					if (value instanceof File) {
+						File file = (File) value;
+						entity.addPart(entry.getKey(), new FileBody(file));
+					} else if (value instanceof InputStream) {
+						InputStream in = (InputStream) value;
+						entity.addPart(entry.getKey(), new InputStreamBody(in, null));
+					} else if (value instanceof String) {
+						entity.addPart(entry.getKey(), new StringBody((String) value, charset));
+					} else {
+						entity.addPart(entry.getKey(), new StringBody(value.toString(), charset));
+					}
 				}
+				post.setEntity(entity);
+			} else {
+				List<NameValuePair> nvps = new ArrayList<NameValuePair>();
+				for (Entry<String, Object> entry : formData.entrySet()) {
+					String value = null;
+					if (entry.getValue() instanceof String) {
+						value = (String) entry.getValue();
+					} else {
+						value = entry.getValue().toString();
+					}
+					nvps.add(new BasicNameValuePair(entry.getKey(), value));
+				}
+				post.setEntity(new UrlEncodedFormEntity(nvps, encoding));
 			}
-			post.setEntity(entity);
-		} else if (formData != null && encoding != null) {
-			List<NameValuePair> nvps = new ArrayList <NameValuePair>();
-			for (Entry<String, String> entry : formData.entrySet()) {
-				nvps.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
-			}
-			post.setEntity(new UrlEncodedFormEntity(nvps, encoding));
 		} else if (bodyData != null) {
 			post.setEntity(new ByteArrayEntity(bodyData));
 		} else if (streamedData != null) {
@@ -239,7 +254,7 @@ public class HttpUtils {
 		HttpPost httpPost = null;
 		try {
 			httpPost = new HttpPost(url);
-			return (DataResponse) doPost(httpPost, headers, null, null, null, body, null, config, 
+			return (DataResponse) doPost(httpPost, headers, null, null, false, body, null, config, 
 					new DataResponseBuilder());
 		} catch (Exception e) {
 			if (httpPost != null) {
@@ -251,12 +266,24 @@ public class HttpUtils {
 	
 	///////////////////////
 	
-	public static DataResponse postAndClose(String url, Map<String, String> headers, Map<String, String> formData, String encoding)
+	public static DataResponse postAndClose(String url, Map<String, String> headers, Map<String, Object> formData, String encoding)
 			throws Exception {
 		return postAndClose(url, headers, formData, encoding, new HttpConfig());
 	}
 	
-	public static DataResponse postAndClose(String url, Map<String, String> headers, Map<String, String> formData, String encoding, HttpConfig config)
+	public static DataResponse postAndClose(String url, Map<String, String> headers, Map<String, Object> formData, String encoding, HttpConfig config)
+			throws Exception {
+		return postAndClose(url, headers, formData, encoding, false, config);
+	}
+	
+	///////////////////////
+	
+	public static DataResponse postAndClose(String url, Map<String, String> headers, Map<String, Object> formData, String encoding, boolean multipart)
+			throws Exception {
+		return postAndClose(url, headers, formData, encoding, multipart, new HttpConfig());
+	}
+	
+	public static DataResponse postAndClose(String url, Map<String, String> headers, Map<String, Object> formData, String encoding, boolean multipart, HttpConfig config)
 			throws Exception {
 		if (encoding == null) {
 			encoding = "UTF-8";
@@ -264,7 +291,7 @@ public class HttpUtils {
 		HttpPost httpPost = null;
 		try {
 			httpPost = new HttpPost(url);
-			return (DataResponse) doPost(httpPost, headers, formData, encoding, null, null, null, config, 
+			return (DataResponse) doPost(httpPost, headers, formData, encoding, multipart, null, null, config, 
 					new DataResponseBuilder());
 		} catch (Exception e) {
 			if (httpPost != null) {
@@ -286,32 +313,7 @@ public class HttpUtils {
 		HttpPost httpPost = null;
 		try {
 			httpPost = new HttpPost(url);
-			return (DataResponse) doPost(httpPost, headers, null, null, null, null, streamedData, config, 
-					new DataResponseBuilder());
-		} catch (Exception e) {
-			if (httpPost != null) {
-				httpPost.releaseConnection();
-			}
-			throw e;
-		}
-	}
-	
-	///////////////////////
-	
-	public static DataResponse postAndClose(String url, Map<String, String> headers, 
-			Map<String, String> formData, String encoding, Map<String, File> files) throws Exception {
-		return postAndClose(url, headers, formData, encoding, files, new HttpConfig());
-	}
-	
-	public static DataResponse postAndClose(String url, Map<String, String> headers, 
-			Map<String, String> formData, String encoding, Map<String, File> files, HttpConfig config) throws Exception {
-		if (encoding == null) {
-			encoding = "UTF-8";
-		}
-		HttpPost httpPost = null;
-		try {
-			httpPost = new HttpPost(url);
-			return (DataResponse) doPost(httpPost, headers, formData, encoding, files, null, null, config, 
+			return (DataResponse) doPost(httpPost, headers, null, null, false, null, streamedData, config, 
 					new DataResponseBuilder());
 		} catch (Exception e) {
 			if (httpPost != null) {
@@ -333,7 +335,7 @@ public class HttpUtils {
 		HttpPost httpPost = null;
 		try {
 			httpPost = new HttpPost(url);
-			return (StreamResponse) doPost(httpPost, headers, null, null, null, body, null, config, 
+			return (StreamResponse) doPost(httpPost, headers, null, null, false, body, null, config, 
 					new StreamResponseBuilder());
 		} catch (Exception e) {
 			if (httpPost != null) {
@@ -345,12 +347,24 @@ public class HttpUtils {
 	
 	///////////////////////
 	
-	public static StreamResponse post(String url, Map<String, String> headers, Map<String, String> formData, String encoding)
+	public static StreamResponse post(String url, Map<String, String> headers, Map<String, Object> formData, String encoding)
 			throws Exception {
 		return post(url, headers, formData, encoding, new HttpConfig());
 	}
 	
-	public static StreamResponse post(String url, Map<String, String> headers, Map<String, String> formData, String encoding, HttpConfig config)
+	public static StreamResponse post(String url, Map<String, String> headers, Map<String, Object> formData, String encoding, HttpConfig config)
+			throws Exception {
+		return post(url, headers, formData, encoding, false, config);
+	}
+	
+	///////////////////////
+	
+	public static StreamResponse post(String url, Map<String, String> headers, Map<String, Object> formData, String encoding, boolean multipart)
+			throws Exception {
+		return post(url, headers, formData, encoding, multipart, new HttpConfig());
+	}
+	
+	public static StreamResponse post(String url, Map<String, String> headers, Map<String, Object> formData, String encoding, boolean multipart, HttpConfig config)
 			throws Exception {
 		if (encoding == null) {
 			encoding = "UTF-8";
@@ -358,7 +372,7 @@ public class HttpUtils {
 		HttpPost httpPost = null;
 		try {
 			httpPost = new HttpPost(url);
-			return (StreamResponse) doPost(httpPost, headers, formData, encoding, null, null, null, config, 
+			return (StreamResponse) doPost(httpPost, headers, formData, encoding, multipart, null, null, config, 
 					new StreamResponseBuilder());
 		} catch (Exception e) {
 			if (httpPost != null) {
@@ -380,29 +394,7 @@ public class HttpUtils {
 		HttpPost httpPost = null;
 		try {
 			httpPost = new HttpPost(url);
-			return (StreamResponse) doPost(httpPost, headers, null, null, null, null, streamedData, config, 
-					new StreamResponseBuilder());
-		} catch (Exception e) {
-			if (httpPost != null) {
-				httpPost.releaseConnection();
-			}
-			throw e;
-		}
-	}
-	
-	///////////////////////
-	
-	public static StreamResponse post(String url, Map<String, String> headers, 
-			Map<String, String> formData, String encoding, Map<String, File> files) throws Exception {
-		return post(url, headers, formData, encoding, files, new HttpConfig());
-	}
-	
-	public static StreamResponse post(String url, Map<String, String> headers, 
-			Map<String, String> formData, String encoding, Map<String, File> files, HttpConfig config) throws Exception {
-		HttpPost httpPost = null;
-		try {
-			httpPost = new HttpPost(url);
-			return (StreamResponse) doPost(httpPost, headers, formData, encoding, files, null, null, config, 
+			return (StreamResponse) doPost(httpPost, headers, null, null, false, null, streamedData, config, 
 					new StreamResponseBuilder());
 		} catch (Exception e) {
 			if (httpPost != null) {
