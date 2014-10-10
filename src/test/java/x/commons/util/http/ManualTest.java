@@ -2,8 +2,16 @@ package x.commons.util.http;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+
+import org.apache.http.client.CookieStore;
+import org.apache.http.cookie.Cookie;
+import org.apache.http.impl.client.BasicCookieStore;
+import org.apache.http.impl.cookie.BasicClientCookie;
 
 import x.commons.util.http.SimpleHttpRequest.HttpMethod;
 
@@ -17,7 +25,11 @@ public class ManualTest {
 		
 		testPostBinary(client, urlBase);
 		testPostString(client, urlBase);
-		testPostFormData(client, urlBase);
+		
+		CookieStore cookieStore = new BasicCookieStore();
+		testPostFormData(client, urlBase, cookieStore);
+		testPostFormData(client, urlBase, cookieStore);
+		
 		testPostMultiPart(client, urlBase);
 		
 		client.close();
@@ -43,12 +55,19 @@ public class ManualTest {
 		System.out.println();
 	}
 	
-	private static void testPostFormData(SimpleHttpClient client, String urlBase) throws IOException {
+	private static void testPostFormData(SimpleHttpClient client, String urlBase, CookieStore cookieStore) throws IOException {
 		String url = urlBase + "/postform";
 		SimpleHttpRequest req = new SimpleHttpRequest(HttpMethod.POST, url);
 		req.addHeader("header1", "header_value11");
 		req.addHeader("header1", "header_value12");
 		req.addHeader("header2", "header_value2");
+		
+		BasicClientCookie reqCookie = new BasicClientCookie("REQ_" + UUID.randomUUID().toString(), "" + System.currentTimeMillis());
+		reqCookie.setDomain("localhost");
+		reqCookie.setPath("/th");
+		reqCookie.setExpiryDate(new Date(Long.MAX_VALUE));
+		cookieStore.addCookie(reqCookie);
+		req.setCookieStore(cookieStore);
 		
 		Map<String, String> formData = new HashMap<String, String>();
 		formData.put("key1", "value1");
@@ -58,6 +77,17 @@ public class ManualTest {
 		
 		SimpleHttpResponse res = client.request(req);
 		System.out.println(res.getEntity(ENC));
+		
+		System.out.println("cookies:");
+		List<Cookie> cookies = cookieStore.getCookies();
+		for (Cookie cookie : cookies) {
+			System.out.println(String.format("name='%s', value='%s', path='%s', domain='%s', version='%d'", 
+					cookie.getName(),
+					cookie.getValue(),
+					cookie.getPath(),
+					cookie.getDomain(),
+					cookie.getVersion()));
+		}
 		
 		System.out.println();
 	}

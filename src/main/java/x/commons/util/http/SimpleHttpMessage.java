@@ -15,6 +15,7 @@ import java.util.Set;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.NameValuePair;
+import org.apache.http.client.CookieStore;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.FileEntity;
@@ -38,6 +39,7 @@ abstract class SimpleHttpMessage {
 	private Map<String, List<String>> headers = new HashMap<String, List<String>>();
 	private HttpEntity entity = null;
 	private HttpVersion httpVersion = null;
+	private CookieStore cookieStore = null;
 	
 	public void addHeader(String name, String value) {
 		name = name.toLowerCase();
@@ -247,15 +249,11 @@ abstract class SimpleHttpMessage {
 		this.httpVersion = httpVersion;
 	}
 	
-	public void setGZIPCompressed(boolean enabled) {
-		if (enabled) {
-			this.setFirstHeader("Content-Encoding", "gzip");
-		} else {
-			this.removeHeaders("Content-Encoding");
-		}
+	public CookieStore getCookieStore() {
+		return cookieStore;
 	}
-	
-	public boolean isGZIPCompressed() {
-		return "gzip".equalsIgnoreCase(this.getFirstHeader("Content-Encoding"));
+
+	public void setCookieStore(CookieStore cookieStore) {
+		this.cookieStore = cookieStore;
 	}
 }

@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.zip.GZIPInputStream;
 
 import org.apache.http.Header;
 import org.apache.http.ProtocolVersion;
@@ -19,12 +18,14 @@ import org.apache.http.client.methods.HttpOptions;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.config.ConnectionConfig;
 import org.apache.http.conn.routing.HttpRoute;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.protocol.HttpContext;
 
 import x.commons.util.http.SimpleHttpConnectionPoolConfig.HttpHost;
 import x.commons.util.http.SimpleHttpMessage.HttpVersion;
@@ -130,10 +131,14 @@ public class SimpleHttpClient implements Closeable {
 		
 		// set entity
 		if (requestBase instanceof HttpEntityEnclosingRequestBase && request.getRawEntity() != null) {
-			if (request.isGZIPCompressed()) {
-				request.setEntity(new GZIPInputStream(request.getEntityAsStream()));
-			}
 			((HttpEntityEnclosingRequestBase) requestBase).setEntity(request.getRawEntity());
+		}
+		
+		HttpContext httpContext = null;
+		// set context
+		if (request.getCookieStore() != null) {
+			httpContext = HttpClientContext.create();
+			httpContext.setAttribute(HttpClientContext.COOKIE_STORE, request.getCookieStore());
 		}
 		
 		// set config
@@ -145,10 +150,16 @@ public class SimpleHttpClient implements Closeable {
 		}
 
 		// do request
-		CloseableHttpResponse response = this.client.execute(requestBase);
-		SimpleHttpResponse retVal = new SimpleHttpResponse();
+		CloseableHttpResponse response = null;
+		if (httpContext != null) {
+			response = this.client.execute(requestBase, httpContext);
+		} else {
+			response = this.client.execute(requestBase);
+		}
 		
 		// parse response:
+		SimpleHttpResponse retVal = new SimpleHttpResponse();
+		
 		// parse status line
 		retVal.setReason(response.getStatusLine().getReasonPhrase());
 		retVal.setStatus(response.getStatusLine().getStatusCode());
@@ -174,6 +185,9 @@ public class SimpleHttpClient implements Closeable {
 		if (response.getEntity() != null) {
 			retVal.setEntity(response.getEntity().getContent());
 		}
+		
+		// parse context
+		retVal.setCookieStore(request.getCookieStore());
 		
 		return retVal;
 	}
