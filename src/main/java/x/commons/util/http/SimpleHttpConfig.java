@@ -1,9 +1,10 @@
 package x.commons.util.http;
 
-public class HttpConfig {
+public class SimpleHttpConfig {
 
-	private int connectionTimeout = 5 * 1000;
-	private int socketTimeout = 15 * 1000;
+	private int connectionTimeout = 15 * 1000;
+	private int socketTimeout = 60 * 1000;
+	private int socketBufferSize = 2048;
 
 	public int getConnectionTimeout() {
 		return connectionTimeout;
@@ -19,6 +20,14 @@ public class HttpConfig {
 
 	public void setSocketTimeout(int socketTimeout) {
 		this.socketTimeout = socketTimeout;
+	}
+
+	public int getSocketBufferSize() {
+		return socketBufferSize;
+	}
+
+	public void setSocketBufferSize(int socketBufferSize) {
+		this.socketBufferSize = socketBufferSize;
 	}
 
 }

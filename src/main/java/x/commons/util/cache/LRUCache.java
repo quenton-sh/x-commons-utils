@@ -51,6 +51,7 @@ public class LRUCache<T> {
 	
 	public synchronized Set<String> keySet() {
 		Set<String> filteredKeySet = new HashSet<String>(this.lruMap.size());
+		Set<String> expiredKeySet = new HashSet<String>();
 		for (Entry<String, CacheItem<T>> entry : this.lruMap.entrySet()) {
 			CacheItem<T> cache = entry.getValue();
 			if (cache != null) {
@@ -62,10 +63,18 @@ public class LRUCache<T> {
 					if (System.currentTimeMillis() <= expireTs) {
 						// not expired
 						filteredKeySet.add(entry.getKey());
+					} else {
+						// expired
+						expiredKeySet.add(entry.getKey());
 					}
 				}
 			}
 		}
+		// remove expired items
+		for (String key : expiredKeySet) {
+			this.lruMap.remove(key);
+		}
+		
 		return filteredKeySet;
 	}
 }
