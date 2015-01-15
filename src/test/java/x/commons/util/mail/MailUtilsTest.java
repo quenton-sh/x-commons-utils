@@ -19,6 +19,14 @@ public class MailUtilsTest {
 		props.setUserName("mailutils@yeah.net");
 		props.setPassword("mailutils123");
 		MailUtils.sendTextMail(props);
+		
+		props.setEncryptProtocol(EncryptProtocol.SSL);
+		props.setSubject("测试邮件-text-SSL");
+		MailUtils.sendTextMail(props);
+		
+		props.setEncryptProtocol(EncryptProtocol.TSL);
+		props.setSubject("测试邮件-text-TSL");
+		MailUtils.sendTextMail(props);
 	}
 	
 	@Test
@@ -33,6 +41,14 @@ public class MailUtilsTest {
 		props.setToAddress("mailutils@yeah.net");
 		props.setUserName("mailutils@yeah.net");
 		props.setPassword("mailutils123");
+//		MailUtils.sendHtmlMail(props);
+		
+		props.setEncryptProtocol(EncryptProtocol.SSL);
+		props.setSubject("测试邮件-html-SSL");
+		MailUtils.sendHtmlMail(props);
+		
+		props.setEncryptProtocol(EncryptProtocol.TSL);
+		props.setSubject("测试邮件-html-TSL");
 		MailUtils.sendHtmlMail(props);
 	}
 }

@@ -8,7 +8,7 @@ public class MailProperties {
 	private String serverHost;
 	
 	// SMTP端口
-	private int serverPort = 25;
+	private int serverPort = -1;
 	
 	// 邮件发送者的地址
 	private String fromAddress;
@@ -31,15 +31,24 @@ public class MailProperties {
 	
 	// 邮件的文本内容
 	private String content;
+	
+	// 加密协议
+	private EncryptProtocol encryptProtocol = EncryptProtocol.NONE;
 
 	/**
 	 * 获得邮件会话属性
 	 */
 	Properties getProperties() {
 		Properties p = new Properties();
-		p.put("mail.smtp.host", this.serverHost);
-		p.put("mail.smtp.port", "" + this.serverPort);
-		p.put("mail.smtp.auth", authentication ? "true" : "false");
+		p.put("mail.smtp.host", this.getServerHost());
+		p.put("mail.smtp.port", "" + this.getServerPort());
+		p.put("mail.smtp.auth", this.needAuthentication() ? "true" : "false");
+		if (this.encryptProtocol == EncryptProtocol.SSL) {
+			p.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+			p.put("mail.smtp.socketFactory.port", "" + this.getServerPort());
+		} else if (this.encryptProtocol == EncryptProtocol.TSL) {
+			p.put("mail.smtp.starttls.enable", "true");
+		}
 		return p;
 	}
 
@@ -56,7 +65,17 @@ public class MailProperties {
 	}
 
 	public int getServerPort() {
-		return serverPort;
+		if (this.serverPort != -1) {
+			return this.serverPort;
+		} else {
+			if (this.encryptProtocol == EncryptProtocol.SSL) {
+				return 465;
+			} else if (this.encryptProtocol == EncryptProtocol.TSL) {
+				return 587;
+			} else {
+				return 25;
+			}
+		}
 	}
 
 	/**
@@ -163,4 +182,17 @@ public class MailProperties {
 	public void setContent(String textContent) {
 		this.content = textContent;
 	}
+
+	public EncryptProtocol getEncryptProtocol() {
+		return encryptProtocol;
+	}
+
+	/**
+	 * 设置加密协议
+	 * @param encryptProtocol
+	 */
+	public void setEncryptProtocol(EncryptProtocol encryptProtocol) {
+		this.encryptProtocol = encryptProtocol;
+	}
+	
 }
