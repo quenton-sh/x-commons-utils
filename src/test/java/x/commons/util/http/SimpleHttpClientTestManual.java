@@ -16,7 +16,7 @@ import org.junit.Test;
 import x.commons.util.http.SimpleHttpConnectionPoolConfig.HttpHost;
 import x.commons.util.http.SimpleHttpRequest.HttpMethod;
 
-public class SimpleHttpClientTest {
+public class SimpleHttpClientTestManual {
 	
 	private static SimpleHttpClient client = null;
 	

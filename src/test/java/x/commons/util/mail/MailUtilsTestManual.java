@@ -5,7 +5,7 @@ import org.junit.Test;
 import x.commons.util.mail.MailProperties;
 import x.commons.util.mail.MailUtils;
 
-public class MailUtilsTest {
+public class MailUtilsTestManual {
 	
 	@Test
 	public void sendTextMail() throws Exception {
