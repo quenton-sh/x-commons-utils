@@ -6,6 +6,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.UUID;
 
 import org.apache.http.client.CookieStore;
@@ -58,9 +59,9 @@ public class ManualTest {
 	private static void testPostFormData(SimpleHttpClient client, String urlBase, CookieStore cookieStore) throws IOException {
 		String url = urlBase + "/postform";
 		SimpleHttpRequest req = new SimpleHttpRequest(HttpMethod.POST, url);
-		req.addHeader("header1", "header_value11");
-		req.addHeader("header1", "header_value12");
-		req.addHeader("header2", "header_value2");
+		req.addHeader("Header1", "header_value11");
+		req.addHeader("Header1", "header_value12");
+		req.addHeader("Header2", "header_value2");
 		
 		BasicClientCookie reqCookie = new BasicClientCookie("REQ_" + UUID.randomUUID().toString(), "" + System.currentTimeMillis());
 		reqCookie.setDomain("localhost");
@@ -77,6 +78,14 @@ public class ManualTest {
 		
 		SimpleHttpResponse res = client.request(req);
 		System.out.println(res.getEntity(ENC));
+		
+		System.out.println("headers:");
+		Map<String, List<String>> resHeaders = res.getAllHeaders();
+		for (Entry<String, List<String>> entry : resHeaders.entrySet()) {
+			for (String value : entry.getValue()) {
+				System.out.println(String.format("%s: %s", entry.getKey(), value));
+			}
+		}
 		
 		System.out.println("cookies:");
 		List<Cookie> cookies = cookieStore.getCookies();
