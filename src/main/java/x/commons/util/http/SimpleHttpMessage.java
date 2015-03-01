@@ -19,6 +19,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.CookieStore;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.FileEntity;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
@@ -265,7 +266,7 @@ abstract class SimpleHttpMessage {
 				if (value instanceof byte[]) {
 					builder.addBinaryBody(entry.getKey(), (byte[]) value);
 				} else if (value instanceof String) {
-					builder.addTextBody(entry.getKey(), (String) value);
+					builder.addTextBody(entry.getKey(), (String) value, ContentType.create("text/plain", encoding));
 				} else if (value instanceof File) {
 					builder.addBinaryBody(entry.getKey(), (File) value);
 				} else if (value instanceof InputStream) {
