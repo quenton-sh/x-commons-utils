@@ -2,6 +2,9 @@ package x.commons.util.http;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+
+import org.apache.http.HttpEntity;
 
 
 public class SimpleHttpResponse extends SimpleHttpMessage implements Closeable {
@@ -27,7 +30,13 @@ public class SimpleHttpResponse extends SimpleHttpMessage implements Closeable {
 
 	@Override
 	public void close() throws IOException {
-		super.getRawEntity().getContent().close();
+		HttpEntity entity = super.getRawEntity();
+		if (entity != null) {
+			InputStream in = entity.getContent();
+			if (in != null) {
+				in.close();
+			}
+		}
 	}
 
 }
