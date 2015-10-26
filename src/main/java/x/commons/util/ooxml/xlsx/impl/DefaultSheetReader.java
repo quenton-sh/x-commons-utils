@@ -39,6 +39,7 @@ public class DefaultSheetReader implements SheetReader {
 	private final StylesTable stylesTable;
 	private final ReadOnlySharedStringsTable sharedStringsTable;
 	private final ExecutorService exec;
+	private final boolean selfBuiltExec; // true：exec为自建；false：exec为外部传入
 
 	private final InputSource inputSource;
 	private final SynchronousQueue<String[]> lineValuesHolder;
@@ -66,8 +67,10 @@ public class DefaultSheetReader implements SheetReader {
 		
 		if (exec == null) {
 			this.exec = Executors.newFixedThreadPool(1);
+			this.selfBuiltExec = true;
 		} else {
 			this.exec = exec;
+			this.selfBuiltExec = false;
 		}
 	}
 
@@ -136,6 +139,15 @@ public class DefaultSheetReader implements SheetReader {
 				this.latch.await();
 			} catch (InterruptedException e) {
 				logger.debug(e.toString(), e);
+			}
+			if (this.selfBuiltExec) {
+				// 自建的exec需要关闭，否则后台线程会阻塞主线程退出
+				this.exec.shutdown();
+				try {
+					this.exec.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS);
+				} catch (InterruptedException e) {
+					logger.debug(e.toString(), e);
+				}
 			}
 			return true;
 		} else {

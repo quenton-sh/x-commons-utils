@@ -10,7 +10,7 @@ public class ReadBigFile {
 
 	public static void main(String[] args) throws Exception {
 		String xlsxFile = ReadBigFile.class.getResource("/test-oom.xlsx").getPath();
-		DefaultDocumentReader docReader = new DefaultDocumentReader(new File(xlsxFile));
+		DocumentReader docReader = new DefaultDocumentReader(new File(xlsxFile));
 		
 		SheetReader sheetReader = docReader.getReaderForSheet(0);
 		sheetReader.startRead();
