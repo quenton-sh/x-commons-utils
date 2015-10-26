@@ -33,10 +33,11 @@ public class DocumentReaderTest {
 		docReader.setDataFormatter(formatter);
 		assertTrue(docReader.getDataFormatter() == formatter);
 		
-		assertTrue(docReader.getSheetNum() == 2);
-		assertTrue(docReader.getSheetNames().size() == 2);
+		assertTrue(docReader.getSheetNum() == 3);
+		assertTrue(docReader.getSheetNames().size() == 3);
 		assertEquals("工作表1", docReader.getSheetNames().get(0));
 		assertEquals("test2", docReader.getSheetNames().get(1));
+		assertEquals("test3", docReader.getSheetNames().get(2));
 		
 		SheetReader sheetReader = docReader.getReaderForSheet(0);
 		assertTrue(sheetReader.getDataFormatter() == formatter);
@@ -90,9 +91,33 @@ public class DocumentReaderTest {
 		sheetReader.close();
 		docReader.close();
 	}
-	
+
 	@Test
 	public void test3() throws Exception {
+		// 打开sheet3，检测空单元格能否读出
+		String xlsxFile = this.getClass().getResource("/test.xlsx").getPath();
+		DefaultDocumentReader docReader = new DefaultDocumentReader(
+				new FileInputStream(xlsxFile));
+
+		SheetReader sheetReader = docReader.getReaderForSheet("test3");
+		sheetReader.startRead();
+
+		// D列是null
+		String[] lineValues = sheetReader.readLine();
+		assertTrue(lineValues.length == 6);
+		assertTrue(lineValues[3] == null);
+		
+		// D列是空字符
+		lineValues = sheetReader.readLine();
+		assertTrue(lineValues.length == 6);
+		assertTrue(lineValues[3] != null && lineValues[3].trim().length() == 0);
+
+		sheetReader.close();
+		docReader.close();
+	}
+	
+	@Test
+	public void test4() throws Exception {
 		// 读到一半中止
 		ExecutorService exec = Executors.newFixedThreadPool(1);
 		String xlsxFile = this.getClass().getResource("/test.xlsx").getPath();
@@ -127,7 +152,7 @@ public class DocumentReaderTest {
 	}
 	
 	@Test
-	public void test4() throws Exception {
+	public void test5() throws Exception {
 		// 各种非正常使用方式
 		String xlsxFile = this.getClass().getResource("/test.xlsx").getPath();
 		DefaultDocumentReader docReader = new DefaultDocumentReader(new File(xlsxFile));
@@ -176,7 +201,7 @@ public class DocumentReaderTest {
 	}
 	
 	@Test
-	public void test5() throws Exception {
+	public void test6() throws Exception {
 		// 模拟读取过程发生异常
 		DataFormatter evilDataFormater = new DataFormatter() {
 			@Override

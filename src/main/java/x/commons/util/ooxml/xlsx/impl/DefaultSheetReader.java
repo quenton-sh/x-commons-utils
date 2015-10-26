@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.xml.parsers.ParserConfigurationException;
 
+import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.util.SAXHelper;
 import org.apache.poi.xssf.eventusermodel.ReadOnlySharedStringsTable;
@@ -214,6 +215,7 @@ public class DefaultSheetReader implements SheetReader {
 		private final SynchronousQueue<String[]> lineValuesHolder;
 		private final AtomicBoolean runFlag;
 
+		private int previousCollIndex = -1;
 		private List<String> values;
 
 		public SheetContentsHandlerImpl(
@@ -230,6 +232,7 @@ public class DefaultSheetReader implements SheetReader {
 				throw new StopSignal();
 			}
 			this.values = new ArrayList<String>(100);
+			this.previousCollIndex = -1;
 		}
 
 		@Override
@@ -262,8 +265,16 @@ public class DefaultSheetReader implements SheetReader {
 				// 收到停止运行的信号
 				throw new StopSignal();
 			}
-			// CellReference cellRef = new CellReference(cellReferenceStr);
-			// int currentCollIndex = cellRef.getCol(); // 当前列索引，从1开始计
+			CellReference cellRef = new CellReference(cellReferenceStr);
+			int currentCollIndex = cellRef.getCol(); // 当前列索引
+			if (this.previousCollIndex >= 0) {
+				int missedColls = currentCollIndex - this.previousCollIndex - 1;
+				for (int i = 0; i < missedColls; i++) {
+					// 缺失的Cell用null填充（空Cell不会记录在ooxml中，所以解析xml时读不到，导致缺失）
+					this.values.add(null);
+				}
+			}
+			this.previousCollIndex = currentCollIndex;
 			this.values.add(formattedValue);
 		}
 
