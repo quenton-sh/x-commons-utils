@@ -1,4 +1,4 @@
-package x.commons.util;
+package x.commons.util.failover;
 
 import java.util.concurrent.Callable;
 

@@ -1,6 +1,7 @@
-package x.commons.util;
+package x.commons.util.failover;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -25,7 +26,13 @@ public class RetrySupportTest {
 		};
 		
 		// 尝试2次，失败
-		RetrySupport sug = new RetrySupport(1, 0);
+		RetrySupport sug = new RetrySupport(1, 0) {
+			@Override
+			protected void logException(Exception e, int leftRetryTime) {
+				String msg = this.buildExceptionMsg(e, leftRetryTime);
+				System.out.println(msg);
+			}
+		};
 		long l1 = System.currentTimeMillis();
 		try {
 			sug.callWithRetry(action);
@@ -39,7 +46,13 @@ public class RetrySupportTest {
 		
 		runCount.set(0);
 		// 尝试4次，通过
-		sug = new RetrySupport();
+		sug = new RetrySupport() {
+			@Override
+			protected void logException(Exception e, int leftRetryTime) {
+				String msg = this.buildExceptionMsg(e, leftRetryTime);
+				System.out.println(msg);
+			}
+		};
 		sug.setFailRetryCount(3);
 		sug.setFailRetryIntervalMillis(100);
 		l1 = System.currentTimeMillis();
