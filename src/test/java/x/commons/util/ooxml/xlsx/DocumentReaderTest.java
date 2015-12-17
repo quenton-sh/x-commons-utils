@@ -11,7 +11,6 @@ import java.util.concurrent.Executors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.FixMethodOrder;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
@@ -20,7 +19,6 @@ import x.commons.util.ooxml.xlsx.impl.DefaultDocumentReader;
 
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-@Ignore
 public class DocumentReaderTest {
 
 	@Test
