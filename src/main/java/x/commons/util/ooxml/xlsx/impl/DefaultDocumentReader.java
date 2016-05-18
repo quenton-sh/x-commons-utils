@@ -4,7 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -41,7 +41,7 @@ public class DefaultDocumentReader implements DocumentReader {
 	
 	public DefaultDocumentReader(InputStream in, ExecutorService exec) throws IOException, SAXException, OpenXML4JException {
 		this.opcPackage = OPCPackage.open(in);
-		this.sheetReaderMap = new HashMap<String, SheetReader>();
+		this.sheetReaderMap = new LinkedHashMap<String, SheetReader>();
 		this.sheetReaderList = new ArrayList<SheetReader>();
 		this.exec = exec;
 		this.init();
@@ -49,7 +49,7 @@ public class DefaultDocumentReader implements DocumentReader {
 
 	public DefaultDocumentReader(File file, ExecutorService exec) throws IOException, SAXException, OpenXML4JException {
 		this.opcPackage = OPCPackage.open(file, PackageAccess.READ);
-		this.sheetReaderMap = new HashMap<String, SheetReader>();
+		this.sheetReaderMap = new LinkedHashMap<String, SheetReader>();
 		this.sheetReaderList = new ArrayList<SheetReader>();
 		this.exec = exec;
 		this.init();
