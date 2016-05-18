@@ -41,7 +41,7 @@ public class FailoverSupport<RESOURCE_TYPE> {
 					throw e;
 				} else {
 					this.logException(e, index, true);
-					index = this.getNextServerAddressIndex(index);
+					index = this.getNextResourceIndex(index);
 				}
 			}
 		}
@@ -66,7 +66,7 @@ public class FailoverSupport<RESOURCE_TYPE> {
 		logger.error(msg, e);
 	}
 	
-	protected int getNextServerAddressIndex(int currentIndex) {
+	protected int getNextResourceIndex(int currentIndex) {
 		int nextIndex = currentIndex + 1;
 		if (nextIndex >= this.resourceList.size()) {
 			nextIndex = 0;
