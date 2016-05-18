@@ -5,13 +5,13 @@
 
 	<groupId>x.commons</groupId>
 	<artifactId>x-commons-utils</artifactId>
-	<version>1.13-SNAPSHOT</version>
+	<version>1.13</version>
 	<packaging>jar</packaging>
 
 	<scm>
 		<connection>scm:git:https://github.com/quenton-sh/x-commons-utils.git</connection>
 		<developerConnection>scm:git:https://github.com/quenton-sh/x-commons-utils.git</developerConnection>
-		<tag>HEAD</tag>
+		<tag>1.13</tag>
 	</scm>
 
 	<properties>
