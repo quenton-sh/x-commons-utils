@@ -12,12 +12,13 @@ import x.commons.util.failover.RetrySupport;
 
 public class FailoverRetrySupport<RESOURCE_TYPE> {
 	
-	private Logger logger = LoggerFactory.getLogger(getClass());
+	private final Logger logger = LoggerFactory.getLogger(getClass());
 	
 	protected final FailoverSupport<RESOURCE_TYPE> failoverSupport;
 	protected final RetrySupport retrySupport;
 
-	public FailoverRetrySupport(List<RESOURCE_TYPE> resourceList, int failRetryCount, int failRetryIntervalMillis) {
+	public FailoverRetrySupport(List<RESOURCE_TYPE> resourceList, 
+			int failRetryCount, int failRetryIntervalMillis) {
 		this.failoverSupport = new FailoverSupport<RESOURCE_TYPE>(resourceList) {
 			@Override
 			protected void logException(Exception e, int index, boolean hasNext) {
@@ -26,8 +27,26 @@ public class FailoverRetrySupport<RESOURCE_TYPE> {
 		};
 		this.retrySupport = new RetrySupport(failRetryCount, failRetryIntervalMillis) {
 			@Override
-			protected void logException(Exception e, int leftRetryTime) {
-				FailoverRetrySupport.this.logRetryException(e, leftRetryTime);
+			protected void logException(Exception e, boolean dead, int leftRetryTime) {
+				FailoverRetrySupport.this.logRetryException(e, dead, leftRetryTime);
+			}
+		};
+	}
+	
+	public FailoverRetrySupport(List<RESOURCE_TYPE> resourceList, 
+			int failRetryCount, int failRetryIntervalMillis,
+			RetryExceptionHandler retryExceptionHandler) {
+		this.failoverSupport = new FailoverSupport<RESOURCE_TYPE>(resourceList) {
+			@Override
+			protected void logException(Exception e, int index, boolean hasNext) {
+				FailoverRetrySupport.this.logFailoverException(e, index, hasNext);
+			}
+		};
+		this.retrySupport = new RetrySupport(failRetryCount, failRetryIntervalMillis,
+				retryExceptionHandler) {
+			@Override
+			protected void logException(Exception e, boolean dead, int leftRetryTime) {
+				FailoverRetrySupport.this.logRetryException(e, dead, leftRetryTime);
 			}
 		};
 	}
@@ -52,8 +71,8 @@ public class FailoverRetrySupport<RESOURCE_TYPE> {
 		logger.error(msg, e);
 	}
 	
-	protected void logRetryException(Exception e, int leftRetryTime) {
-		String msg = this.retrySupport.buildExceptionMsg(e, leftRetryTime);
+	protected void logRetryException(Exception e, boolean dead, int leftRetryTime) {
+		String msg = this.retrySupport.buildExceptionMsg(e, dead, leftRetryTime);
 		logger.error(msg, e);
 	}
 }

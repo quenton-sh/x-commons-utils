@@ -12,6 +12,7 @@ public class RetrySupport {
 	
 	private int failRetryCount = 2; // 失败重试次数
 	private int failRetryIntervalMillis = 1000; // 失败多次重试之间的间隔时间（毫秒）
+	private RetryExceptionHandler retryExceptionHandler;
 	
 	public RetrySupport() {
 		
@@ -20,6 +21,13 @@ public class RetrySupport {
 	public RetrySupport(int failRetryCount, int failRetryIntervalMillis) {
 		this.failRetryCount = failRetryCount;
 		this.failRetryIntervalMillis = failRetryIntervalMillis;
+	}
+	
+	public RetrySupport(int failRetryCount, int failRetryIntervalMillis, 
+			RetryExceptionHandler retryExceptionHandler) {
+		this.failRetryCount = failRetryCount;
+		this.failRetryIntervalMillis = failRetryIntervalMillis;
+		this.retryExceptionHandler = retryExceptionHandler;
 	}
 
 	public int getFailRetryCount() {
@@ -37,6 +45,14 @@ public class RetrySupport {
 	public void setFailRetryIntervalMillis(int failRetryIntervalMillis) {
 		this.failRetryIntervalMillis = failRetryIntervalMillis;
 	}
+	
+	public RetryExceptionHandler getExceptionHandler() {
+		return retryExceptionHandler;
+	}
+
+	public void setExceptionHandler(RetryExceptionHandler exceptionHandler) {
+		this.retryExceptionHandler = exceptionHandler;
+	}
 
 	public <T> T callWithRetry(Callable<T> callable) throws Exception {
 		int leftRunTimes = 1; // 剩余的循环体可运行次数
@@ -45,19 +61,37 @@ public class RetrySupport {
 		}
 		T retVal = null;
 		while (true) {
+			if (leftRunTimes <= 0) {
+				break;
+			}
 			leftRunTimes --;
 			try {
 				retVal = callable.call();
 				break;
 			} catch (Exception e) {
-				this.logException(e, leftRunTimes);
+				boolean dead = false;
 				if (leftRunTimes <= 0) {
-					throw e; 
-				} else if (this.failRetryIntervalMillis > 0) {
-					try {
-						Thread.sleep(failRetryIntervalMillis);
-					} catch (InterruptedException e1) {
-						
+					dead = true;
+				}
+				if (!dead) {
+					if (this.retryExceptionHandler != null) {
+						this.retryExceptionHandler.handleException(e, dead, leftRunTimes);
+					} else {
+						this.logException(e, dead, leftRunTimes);
+					}
+					if (this.failRetryIntervalMillis > 0) {
+						try {
+							Thread.sleep(failRetryIntervalMillis);
+						} catch (InterruptedException e1) {
+							
+						}
+					}
+				} else {
+					if (this.retryExceptionHandler != null) {
+						this.retryExceptionHandler.handleException(e, dead, leftRunTimes);
+					} else {
+						this.logException(e, dead, leftRunTimes);
+						throw e;
 					}
 				}
 			}
@@ -65,9 +99,9 @@ public class RetrySupport {
 		return retVal;
 	}
 	
-	protected String buildExceptionMsg(Exception e, int leftRetryTime) {
+	protected String buildExceptionMsg(Exception e, boolean dead, int leftRetryTime) {
 		String exceptionName = e.getClass().getName();
-		if (leftRetryTime > 0) {
+		if (!dead) {
 			if (this.failRetryIntervalMillis > 0) {
 				return String.format("%s: '%s' caught, %d retry times left. Retry in %d milliseconds.",
 								exceptionName, e.getMessage(), leftRetryTime,
@@ -82,8 +116,8 @@ public class RetrySupport {
 		}
 	}
 	
-	protected void logException(Exception e, int leftRetryTime) {
-		String msg = this.buildExceptionMsg(e, leftRetryTime);
+	protected void logException(Exception e, boolean dead, int leftRetryTime) {
+		String msg = this.buildExceptionMsg(e, dead, leftRetryTime);
 		logger.error(msg, e);
 	}
 }

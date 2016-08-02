@@ -53,8 +53,8 @@ public class FailoverRetrySupportTest {
 			}
 			
 			@Override
-			protected void logRetryException(Exception e, int leftRetryTime) {
-				String msg = this.retrySupport.buildExceptionMsg(e, leftRetryTime);
+			protected void logRetryException(Exception e, boolean dead, int leftRetryTime) {
+				String msg = this.retrySupport.buildExceptionMsg(e, dead, leftRetryTime);
 				System.out.println(msg);
 			}
 		};
@@ -76,8 +76,8 @@ public class FailoverRetrySupportTest {
 			}
 			
 			@Override
-			protected void logRetryException(Exception e, int leftRetryTime) {
-				String msg = this.retrySupport.buildExceptionMsg(e, leftRetryTime);
+			protected void logRetryException(Exception e, boolean dead, int leftRetryTime) {
+				String msg = this.retrySupport.buildExceptionMsg(e, dead, leftRetryTime);
 				System.out.println(msg);
 			}
 		};
