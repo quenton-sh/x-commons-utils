@@ -5,7 +5,7 @@
 
 	<groupId>x.commons</groupId>
 	<artifactId>x-commons-utils</artifactId>
-	<version>1.15-SNAPSHOT</version>
+	<version>1.14</version>
 	<packaging>jar</packaging>
 
 	<scm>
