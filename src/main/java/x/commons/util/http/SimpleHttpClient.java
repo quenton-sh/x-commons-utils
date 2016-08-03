@@ -76,6 +76,8 @@ public class SimpleHttpClient implements Closeable {
 			clientBuilder.setConnectionManager(cm);
 			
 			requestConfigBuilder.setConnectionRequestTimeout(connectionPoolConfig.getConnectinRetrievingTimeout());
+		} else {
+			clientBuilder.setConnectionManager(null);
 		}
 		
 		clientBuilder.setDefaultConnectionConfig(connectionConfigBuilder.build())
